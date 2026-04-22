@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html class="light" lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>RISKed | Investment Profile</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400..700;1,400..700&family=Public+Sans:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet" />
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#003527",
+                        "secondary": "#006c49",
+                        "secondary-container": "#6cf8bb",
+                        "background": "#f8f9ff",
+                        "on-background": "#121c2a",
+                        "surface-container-highest": "#d9e3f6",
+                        "outline-variant": "#bfc9c3",
+                        "on-surface-variant": "#404944",
+                    },
+                    fontFamily: {
+                        "headline": ["Lora", "serif"],
+                        "body": ["Public Sans", "sans-serif"],
+                    }
+                },
+            },
+        }
+    </script>
+    <style>
+        .glass-card {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+        }
+        .step-transition { transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
+        input[type="radio"]:checked + div { border-color: #006c49; background-color: rgba(108, 248, 187, 0.1); }
+        input[type="radio"]:checked + div .check-dot { transform: scale(1); }
+
+        /* PHASE 1: Loading Screen */
+        @keyframes spinner { to { transform: rotate(360deg); } }
+        .loading-spin { animation: spinner 0.8s linear infinite; }
+        @keyframes fadeOut { to { opacity: 0; visibility: hidden; } }
+        .phase-1-container { animation: fadeOut 0.5s ease forwards 1.5s; }
+
+        /* PHASE 2: Main Card Reveal */
+        @keyframes cardReveal { to { opacity: 1; transform: scale(1); } }
+        .reveal-card {
+            opacity: 0;
+            transform: scale(0.9);
+            animation: cardReveal 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards 1.5s;
+        }
+
+        /* PHASE 3: Content Animations */
+        @keyframes shieldReveal {
+            0%   { transform: scale(0) rotate(-45deg); opacity: 0; }
+            100% { transform: scale(1) rotate(0); opacity: 1; }
+        }
+        @keyframes shimmer {
+            0%   { filter: brightness(1); }
+            50%  { filter: brightness(1.3) drop-shadow(0 0 10px rgba(108, 248, 187, 0.4)); }
+            100% { filter: brightness(1); }
+        }
+        .shield-shimmer {
+            animation: shieldReveal 0.7s ease-out forwards 2s, shimmer 2s linear infinite 3s;
+        }
+
+        /* Logic Fix: Marker now uses JS-driven transition for reliable positioning */
+        .gauge-marker {
+            left: 0%;
+            transition: left 1.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+            transition-delay: 2.2s;
+        }
+
+        @keyframes pulse {
+            0%   { box-shadow: 0 0 0 0 rgba(108, 248, 187, 0.4); }
+            70%  { box-shadow: 0 0 0 15px rgba(108, 248, 187, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(108, 248, 187, 0); }
+        }
+        .pulse-halo { animation: pulse 2s infinite 3.5s; }
+
+        @keyframes staggerIn { to { opacity: 1; transform: translateY(0); } }
+        .stagger-item { opacity: 0; transform: translateY(10px); }
+        .stagger-1 { animation: staggerIn 0.5s ease forwards 2.4s; }
+        .stagger-2 { animation: staggerIn 0.5s ease forwards 2.5s; }
+        .stagger-3 { animation: staggerIn 0.5s ease forwards 2.6s; }
+        .stagger-4 { animation: staggerIn 0.5s ease forwards 2.7s; }
+
+        /* PHASE 4: CTA Button */
+        @keyframes buttonPulse {
+            0%   { box-shadow: 0 0 0 0 rgba(6, 78, 59, 0.4); }
+            50%  { box-shadow: 0 0 20px 2px rgba(108, 248, 187, 0.3); }
+            100% { box-shadow: 0 0 0 0 rgba(6, 78, 59, 0.4); }
+        }
+        .neon-pulse { animation: buttonPulse 2.5s infinite 4s; }
+
+        /* Confetti */
+        @keyframes confettiFall {
+            0%   { transform: translateY(-50px) rotate(0); opacity: 1; }
+            100% { transform: translateY(500px) rotate(720deg); opacity: 0; }
+        }
+        .confetti-piece {
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            top: -20px;
+            z-index: 100;
+            animation: confettiFall 3s ease-out forwards;
+        }
+
+        @media print {
+            header, #progress-container, #disclaimer-box, footer, button, .no-print, #loading-overlay, #confetti-container { display: none !important; }
+            body { background: white; }
+            .glass-card { 
+                border: 1px solid #eee !important; 
+                box-shadow: none !important;
+                background: white !important;
+                backdrop-filter: none !important;
+                opacity: 1 !important;
+                transform: none !important;
+            }
+            .stagger-item { opacity: 1 !important; transform: none !important; }
+            main { padding: 0; max-width: 100%; margin-top: 0; }
+            #results-container { display: block !important; opacity: 1 !important; }
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background min-h-screen flex flex-col font-body" id="app">
+    <!-- Confetti Container -->
+    <div id="confetti-container" class="fixed inset-0 pointer-events-none overflow-hidden z-[70]"></div>
+
+    <!-- Header -->
+    <header class="bg-white/80 backdrop-blur-lg sticky top-0 z-50 border-b border-outline-variant/30 shadow-sm">
+        <div class="flex justify-between items-center w-full px-6 py-4 max-w-7xl mx-auto">
+            <div class="flex items-center gap-2">
+                <div class="w-8 h-8 bg-primary rounded flex items-center justify-center">
+                    <i class="ph ph-chart-pie-slice text-white text-lg"></i>
+                </div>
+                <div class="text-xl font-black tracking-tighter text-primary font-headline italic uppercase">
+                    RISKed
+                </div>
+            </div>
+            <div class="flex items-center gap-4">
+                <button onclick="toggleLanguage()" class="flex items-center gap-2 px-3 py-1.5 border border-outline-variant rounded-full hover:bg-surface-container-highest transition-all text-xs font-bold uppercase tracking-wider">
+                    <i class="ph ph-translate"></i>
+                    <span id="lang-label">ESP</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-grow w-full max-w-3xl mx-auto px-6 py-12">
+        <div id="progress-container" class="mb-12 text-center">
+            <h1 id="main-title" class="font-headline text-3xl text-primary mb-4">Financial Risk Assessment</h1>
+            <p id="main-desc" class="text-on-surface-variant max-w-xl mx-auto mb-8"></p>
+            <div class="max-w-md mx-auto space-y-2">
+                <div class="flex justify-between items-end px-1">
+                    <span id="progress-label" class="text-[10px] font-bold text-secondary uppercase tracking-widest"></span>
+                    <span id="progress-percent" class="text-[10px] font-bold text-on-surface-variant"></span>
+                </div>
+                <div class="w-full h-1.5 bg-surface-container-highest rounded-full overflow-hidden">
+                    <div id="progress-bar" class="h-full bg-secondary w-[0%] rounded-full transition-all duration-700 ease-out"></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="question-wrapper" class="relative"></div>
+
+        <div id="results-container" class="hidden relative">
+            <div id="loading-overlay" class="phase-1-container fixed inset-0 z-[60] bg-background flex flex-col items-center justify-center">
+                <div class="w-16 h-16 border-4 border-secondary/20 border-t-secondary rounded-full loading-spin mb-4"></div>
+                <p id="calculating-text" class="text-xs font-bold text-primary uppercase tracking-[0.3em]">Analyzing Profile...</p>
+            </div>
+
+            <div class="reveal-card glass-card border-2 border-secondary/20 rounded-3xl p-8 relative overflow-hidden shadow-2xl shadow-secondary/10">
+                <div class="relative z-10">
+                    <div class="flex items-center gap-4 mb-6 stagger-item stagger-1">
+                        <div class="w-14 h-14 rounded-2xl bg-secondary-container flex items-center justify-center shield-shimmer">
+                            <i id="result-icon" class="text-secondary text-3xl"></i>
+                        </div>
+                        <div>
+                            <p id="result-label" class="text-xs font-bold text-secondary uppercase tracking-widest">Confidential Analysis</p>
+                            <h2 id="result-title" class="font-headline text-3xl text-primary leading-tight"></h2>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-8 stagger-item stagger-2">
+                        <div class="flex justify-between text-[10px] font-black uppercase text-on-surface-variant mb-2">
+                            <span>Conservative</span>
+                            <span>Aggressive</span>
+                        </div>
+                        <div class="relative h-3 w-full bg-gradient-to-r from-green-200 via-yellow-200 to-red-300 rounded-full">
+                            <div id="gauge-ptr" class="gauge-marker absolute -top-1 w-5 h-5 bg-primary border-2 border-white rounded-full shadow-lg pulse-halo transition-all"></div>
+                        </div>
+                    </div>
+
+                    <div class="p-6 bg-white/50 rounded-2xl border border-outline-variant/30 mb-8 stagger-item stagger-2">
+                        <p id="result-desc" class="text-on-surface-variant leading-relaxed italic"></p>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8 stagger-item stagger-3">
+                        <div class="space-y-4">
+                            <h4 id="instruments-title" class="font-bold text-sm uppercase tracking-widest text-primary flex items-center gap-2"></h4>
+                            <ul id="instruments-list" class="space-y-2 text-sm text-on-surface-variant"></ul>
+                        </div>
+                        <div class="space-y-4">
+                            <h4 id="advice-title" class="font-bold text-sm uppercase tracking-widest text-secondary flex items-center gap-2"></h4>
+                            <p id="advice-text" class="text-sm text-on-surface-variant leading-relaxed bg-secondary/5 p-4 rounded-xl border border-secondary/10"></p>
+                        </div>
+                    </div>
+
+                    <div class="p-6 bg-primary/5 rounded-2xl border border-primary/10 mb-8 stagger-item stagger-4">
+                        <h4 class="font-bold text-xs uppercase tracking-widest text-primary mb-2 flex items-center gap-2">
+                            <i class="ph ph-arrows-clockwise"></i> <span id="dynamic-risk-title"></span>
+                        </h4>
+                        <p id="dynamic-risk-text" class="text-xs text-on-surface-variant leading-relaxed"></p>
+                    </div>
+
+                    <div class="p-6 border-t border-outline-variant/20 flex flex-col md:flex-row items-center justify-between gap-4 print:border-none stagger-item stagger-4">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-full bg-secondary/10 flex items-center justify-center text-secondary">
+                                <i class="ph ph-calendar-check"></i>
+                            </div>
+                            <span id="consult-text" class="text-xs font-semibold text-primary max-w-[280px]"></span>
+                        </div>
+                        <button onclick="window.print()" class="px-6 py-3 bg-primary text-white rounded-xl font-bold text-sm hover:scale-105 transition-all flex items-center gap-2 neon-pulse">
+                            <i class="ph ph-printer"></i> <span id="print-btn"></span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <button onclick="resetAssessment()" class="mt-8 mx-auto block text-xs font-bold text-on-surface-variant hover:text-primary transition-colors uppercase tracking-widest no-print stagger-item stagger-4">
+                <i class="ph ph-arrow-counter-clockwise"></i> <span id="reset-btn"></span>
+            </button>
+        </div>
+
+        <div id="disclaimer-box" class="mt-12 p-6 rounded-2xl border border-red-200 bg-red-50/50 text-red-900/70 text-xs leading-relaxed italic">
+            <p id="disclaimer-text"></p>
+        </div>
+    </main>
+
+    <footer class="mt-auto py-8 bg-white border-t border-outline-variant/20 no-print">
+        <div class="max-w-7xl mx-auto px-6 flex justify-center text-[10px] font-bold text-outline uppercase tracking-[0.2em] opacity-60">
+            <span>© 2024 RISKED FINANCIAL | PROFESSIONAL ANALYTICS</span>
+        </div>
+    </footer>
+
+    <script>
+        const content = {
+            en: {
+                mainTitle: "Risk Profile Assessment",
+                mainDesc: "Identify your investment temperament through our proprietary psychometric framework.",
+                langBtn: "ESP",
+                progLabel: "Question",
+                progOf: "of",
+                calculating: "Analyzing Profile...",
+                disclaimer: "⚠️ Important Disclaimer: This questionnaire is for educational and informational purposes only. It does not constitute financial, legal, or investment advice. Risk appetite is dynamic and can change over time according to your life goals. Always consult with a certified professional.",
+                instruments: "Typical Instruments",
+                strategicAdvice: "Professional Guidance",
+                dynamicTitle: "Risk is Dynamic",
+                dynamicText: "Remember: Risk appetite is not fixed. It can change with your age, employment situation, or wealth. It is recommended to review your profile annually.",
+                consult: "Professional consultation is highly recommended. A single session can prevent costly early mistakes.",
+                print: "Print Professional Report",
+                restart: "Restart Assessment",
+                questions: [
+                    { q: "What is your primary investment goal?", cat: "Objective", options: [{ text: "Protect my money from inflation", pts: 1 }, { text: "Generate stable income", pts: 2 }, { text: "Moderate long-term growth", pts: 3 }, { text: "Maximize growth with high volatility", pts: 4 }, { text: "High returns in the short term", pts: 5 }] },
+                    { q: "How long do you plan to invest before using the money?", cat: "Time Horizon", options: [{ text: "Less than 1 year", pts: 1 }, { text: "1 to 3 years", pts: 2 }, { text: "3 to 5 years", pts: 3 }, { text: "5 to 10 years", pts: 4 }, { text: "Over 10 years", pts: 5 }] },
+                    { q: "If your portfolio fell 20% in 3 months, what would you do?", cat: "Volatility Response", options: [{ text: "Sell everything immediately", pts: 1 }, { text: "Sell a part and wait", pts: 2 }, { text: "Do nothing, wait for recovery", pts: 3 }, { text: "Keep and review rebalancing", pts: 4 }, { text: "Buy more at lower prices", pts: 5 }] },
+                    { q: "What is your current financial situation?", cat: "Financial Status", options: [{ text: "Significant debt, low savings", pts: 1 }, { text: "Expenses covered, low margin", pts: 2 }, { text: "Emergency fund ready", pts: 3 }, { text: "Stable income and capital", pts: 4 }, { text: "Consolidated wealth", pts: 5 }] },
+                    { q: "How much investment experience do you have?", cat: "Experience", options: [{ text: "None, first time", pts: 1 }, { text: "Basic savings accounts", pts: 2 }, { text: "Index funds or ETFs", pts: 3 }, { text: "Stocks and bonds", pts: 4 }, { text: "Advanced derivatives/crypto", pts: 5 }] },
+                    { q: "What percentage of your wealth are you willing to invest?", cat: "Allocation", options: [{ text: "Less than 10%", pts: 1 }, { text: "10% to 25%", pts: 2 }, { text: "25% to 50%", pts: 3 }, { text: "50% to 75%", pts: 4 }, { text: "More than 75%", pts: 5 }] },
+                    { q: "How do you emotionally react to economic uncertainty?", cat: "Psychology", options: [{ text: "High anxiety, prefer certainty", pts: 1 }, { text: "Uncomfortable but tolerable", pts: 2 }, { text: "Part of the process", pts: 3 }, { text: "Calm, trust my strategy", pts: 4 }, { text: "Opportunity-focused", pts: 5 }] },
+                    { q: "Which scenario would you prefer for a €10,000 investment?", cat: "Risk/Reward", options: [{ text: "Earn €300 with total certainty", pts: 1 }, { text: "Earn likely €600, min risk", pts: 2 }, { text: "Earn €0 - €1,500 range", pts: 3 }, { text: "Earn €2,500 or lose €800", pts: 4 }, { text: "Earn €5,000 or lose €3,000", pts: 5 }] }
+                ],
+                profiles: [
+                    { range: [8, 14], title: "Conservative", icon: "ph-shield-check", desc: "Prioritizes capital preservation above all else. Comfortable with lower returns to avoid any potential loss.", instruments: ["High-yield savings", "Fixed-term deposits", "Money market funds"], advice: "Consult an advisor for inflation protection. A single session can help you navigate fixed income without costly mistakes." },
+                    { range: [15, 21], title: "Moderate-Conservative", icon: "ph-plant", desc: "Seeks a balance but leans toward security. Can tolerate small dips for slightly higher yield.", instruments: ["Mixed funds (70/30)", "Dividend ETFs", "Corporate bonds"], advice: "An advisor can design a balanced portfolio. A one-time consultation provides the structure you need without ongoing fees." },
+                    { range: [22, 28], title: "Moderate", icon: "ph-scales", desc: "Balanced risk/reward. Accepts that market volatility is a natural part of achieving long-term capital growth.", instruments: ["Global Index Funds", "60/40 ETFs", "Large-cap stocks"], advice: "Review your asset allocation with a professional. A quick check clarifying tax and rebalancing will boost your long-term confidence." },
+                    { range: [29, 35], title: "Moderate-Aggressive", icon: "ph-chart-line-up", desc: "Aims for significant growth. Comfortable with large fluctuations and focused on long-term wealth building.", instruments: ["Individual stocks", "Sector ETFs", "Small caps"], advice: "Optimize your tax structure with an advisor. Strategic consultation makes a massive difference when handling significant capital." },
+                    { range: [36, 40], title: "Aggressive", icon: "ph-rocket-launch", desc: "Maximum growth focus. Willing to accept substantial short-term losses for the potential of high outperformance.", instruments: ["Growth stocks", "Cryptocurrencies", "Options/Derivados"], advice: "Seek a specialized advisor for high-risk portfolios. Correct structuring is vital, especially regarding digital assets and alternative vehicles." }
+                ]
+            },
+            esp: {
+                mainTitle: "Evaluación de Perfil de Riesgo",
+                mainDesc: "Identifica tu temperamento inversor a través de nuestro marco psicométrico propietario.",
+                langBtn: "ENG",
+                progLabel: "Pregunta",
+                progOf: "de",
+                calculating: "Analizando Perfil...",
+                disclaimer: "⚠️ Importante: Este cuestionario es educativo. No constituye consejo financiero. El apetito al riesgo es dinámico y cambia con el tiempo. Consulta siempre con un profesional certificado.",
+                instruments: "Instrumentos Típicos",
+                strategicAdvice: "Guía Profesional",
+                dynamicTitle: "El Riesgo es Dinámico",
+                dynamicText: "Recuerda: El apetito al riesgo no es fijo. Cambia con la edad, empleo o patrimonio. Se recomienda revisión anual.",
+                consult: "Consulta profesional recomendada. Una sola sesión evita errores costosos iniciales.",
+                print: "Imprimir Informe",
+                restart: "Reiniciar",
+                questions: [
+                    { q: "¿Cuál es tu objetivo principal?", cat: "Objetivo", options: [{ text: "Proteger mi dinero de la inflación", pts: 1 }, { text: "Ingresos estables", pts: 2 }, { text: "Crecimiento moderado", pts: 3 }, { text: "Crecimiento con volatilidad", pts: 4 }, { text: "Altos retornos a corto plazo", pts: 5 }] },
+                    { q: "¿En cuánto tiempo usarás el dinero?", cat: "Horizonte", options: [{ text: "Menos de 1 año", pts: 1 }, { text: "1 a 3 años", pts: 2 }, { text: "3 a 5 años", pts: 3 }, { text: "5 a 10 años", pts: 4 }, { text: "Más de 10 años", pts: 5 }] },
+                    { q: "Si tu portafolio cae 20%, ¿qué haces?", cat: "Volatilidad", options: [{ text: "Vendo todo inmediatamente", pts: 1 }, { text: "Vendo una parte", pts: 2 }, { text: "Espero recuperación", pts: 3 }, { text: "Mantengo y rebalanceo", pts: 4 }, { text: "Compro más barato", pts: 5 }] },
+                    { q: "¿Tu situación financiera actual?", cat: "Estado", options: [{ text: "Deuda, poco ahorro", pts: 1 }, { text: "Gastos cubiertos, poco margen", pts: 2 }, { text: "Fondo emergencia listo", pts: 3 }, { text: "Ingresos y capital estable", pts: 4 }, { text: "Patrimonio consolidado", pts: 5 }] },
+                    { q: "¿Tu experiencia invirtiendo?", cat: "Experiencia", options: [{ text: "Ninguna", pts: 1 }, { text: "Cuentas de ahorro", pts: 2 }, { text: "Fondos indexados/ETFs", pts: 3 }, { text: "Acciones y bonos", pts: 4 }, { text: "Derivados/cripto", pts: 5 }] },
+                    { q: "¿Cuánto de tu patrimonio invertirás?", cat: "Asignación", options: [{ text: "Menos del 10%", pts: 1 }, { text: "10% a 25%", pts: 2 }, { text: "25% a 50%", pts: 3 }, { text: "50% a 75%", pts: 4 }, { text: "Más del 75%", pts: 5 }] },
+                    { q: "¿Cómo reaccionas a la incertidumbre?", cat: "Psicología", options: [{ text: "Ansiedad, prefiero certeza", pts: 1 }, { text: "Incómodo pero tolerable", pts: 2 }, { text: "Parte del proceso", pts: 3 }, { text: "Tranquilo, confío en mi plan", pts: 4 }, { text: "Encuentro oportunidades", pts: 5 }] },
+                    { q: "¿Qué escenario prefieres para €10.000?", cat: "Riesgo", options: [{ text: "Ganar €300 con certeza", pts: 1 }, { text: "Ganar €600, riesgo mínimo", pts: 2 }, { text: "Rango €0 - €1.500", pts: 3 }, { text: "Ganar €2.500 o perder €800", pts: 4 }, { text: "Ganar €5.000 o perder €3.000", pts: 5 }] }
+                ],
+                profiles: [
+                    { range: [8, 14], title: "Conservador", icon: "ph-shield-check", desc: "Prioriza la preservación. Prefiere rendimientos bajos a cambio de seguridad absoluta.", instruments: ["Cuentas remuneradas", "Depósitos", "Bonos Estado"], advice: "Consulta un asesor para protegerte de la inflación. Evita errores comunes en renta fija." },
+                    { range: [15, 21], title: "Moderado-Conservador", icon: "ph-plant", desc: "Busca equilibrio pero teme las pérdidas. Tolera ligeras caídas por un extra de rentabilidad.", instruments: ["Fondos 70/30", "ETFs Dividendos"], advice: "Una consulta puntual te dará la estructura inicial que necesitas sin gastos recurrentes." },
+                    { range: [22, 28], title: "Moderado", icon: "ph-scales", desc: "Equilibrio riesgo/recompensa. Acepta que la volatilidad es natural para crecer a largo plazo.", instruments: ["MSCI World", "ETFs 60/40"], advice: "Revisa tu fiscalidad con un profesional para optimizar tus beneficios a largo plazo." },
+                    { range: [29, 35], title: "Moderado-Agresivo", icon: "ph-chart-line-up", desc: "Busca crecimiento alto. Cómodo con fluctuaciones fuertes centradas en crear riqueza.", instruments: ["Acciones", "Sectoriales", "Small Caps"], advice: "La consulta estratégica marca la diferencia cuando manejas importes significativos." },
+                    { range: [36, 40], title: "Agresivo", icon: "ph-rocket-launch", desc: "Enfoque máximo en crecimiento. Acepta pérdidas fuertes a corto por potenciales ganancias altas.", instruments: ["Growth", "Cripto", "Opciones"], advice: "Necesitas asesoría especializada en activos alternativos y fiscalidad avanzada." }
+                ]
+            }
+        };
+
+
+        let currentLang = 'en';
+        let currentStep = 0;
+        let scores = [];
+
+        function init() { renderLanguage(); renderStep(); }
+
+        function toggleLanguage() {
+            currentLang = currentLang === 'en' ? 'esp' : 'en';
+            renderLanguage();
+            if (currentStep < 8) renderStep(); else showResults();
+        }
+
+        function renderLanguage() {
+            const t = content[currentLang];
+            document.getElementById('main-title').innerText = t.mainTitle;
+            document.getElementById('main-desc').innerText = t.mainDesc;
+            document.getElementById('lang-label').innerText = currentLang === 'en' ? 'ESP' : 'ENG';
+            document.getElementById('disclaimer-text').innerText = t.disclaimer;
+            document.getElementById('instruments-title').innerHTML = `<i class="ph ph-briefcase"></i> ${t.instruments}`;
+            document.getElementById('advice-title').innerHTML = `<i class="ph ph-user-focus"></i> ${t.strategicAdvice}`;
+            document.getElementById('dynamic-risk-title').innerText = t.dynamicTitle;
+            document.getElementById('dynamic-risk-text').innerText = t.dynamicText;
+            document.getElementById('consult-text').innerText = t.consult;
+            document.getElementById('print-btn').innerText = t.print;
+            document.getElementById('reset-btn').innerText = t.restart;
+            document.getElementById('calculating-text').innerText = t.calculating;
+        }
+
+        function renderStep() {
+            const t = content[currentLang];
+            const wrapper = document.getElementById('question-wrapper');
+            const progressLabel = document.getElementById('progress-label');
+            const progressPercent = document.getElementById('progress-percent');
+            const progressBar = document.getElementById('progress-bar');
+            if (currentStep >= 8) return;
+            const qData = t.questions[currentStep];
+            const progress = ((currentStep + 1) / 8) * 100;
+            progressLabel.innerText = `${t.progLabel} ${currentStep + 1} ${t.progOf} 8`;
+            progressPercent.innerText = `${progress.toFixed(0)}%`;
+            progressBar.style.width = `${progress}%`;
+            
+            wrapper.innerHTML = `
+                <div class="glass-card border border-outline-variant/40 rounded-3xl p-8 shadow-xl step-transition translate-y-0 opacity-100">
+                    <div class="mb-8"><span class="text-[10px] font-bold text-secondary bg-secondary-container px-3 py-1 rounded-md uppercase tracking-widest">${qData.cat}</span><h2 class="font-headline text-2xl text-on-surface leading-tight mt-4">${qData.q}</h2></div>
+                    <div class="space-y-3">
+                        ${qData.options.map((opt) => `
+                            <label class="group relative flex items-center p-4 border border-outline-variant/50 rounded-2xl cursor-pointer hover:border-secondary transition-all duration-200">
+                                <input class="sr-only" type="radio" name="step_option" value="${opt.pts}" onchange="handleSelect(${opt.pts})">
+                                <div class="w-5 h-5 rounded-full border-2 border-outline-variant flex items-center justify-center mr-4 transition-all">
+                                    <div class="w-2.5 h-2.5 bg-secondary rounded-full scale-0 transition-transform duration-200 check-dot"></div>
+                                </div>
+                                <span class="text-sm font-medium text-on-surface-variant group-hover:text-primary">${opt.text}</span>
+                            </label>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        function handleSelect(points) {
+            scores[currentStep] = points;
+            setTimeout(() => {
+                currentStep++;
+                if (currentStep < 8) renderStep(); else showResults();
+            }, 400);
+        }
+
+        function spawnConfetti() {
+            const container = document.getElementById('confetti-container');
+            const colors = ['#006c49', '#6cf8bb', '#003527', '#ffd700', '#ffffff'];
+            for (let i = 0; i < 60; i++) {
+                const piece = document.createElement('div');
+                piece.className = 'confetti-piece';
+                piece.style.left = Math.random() * 100 + 'vw';
+                piece.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                piece.style.animationDelay = Math.random() * 2 + 's';
+                piece.style.width = (Math.random() * 8 + 4) + 'px';
+                piece.style.height = piece.style.width;
+                container.appendChild(piece);
+            }
+        }
+
+        function showResults() {
+            const t = content[currentLang];
+            const totalScore = scores.reduce((a, b) => a + b, 0);
+            const profile = t.profiles.find(p => totalScore >= p.range[0] && totalScore <= p.range[1]) || t.profiles[t.profiles.length-1];
+            
+            // Fixed positioning logic: reset first then apply new position
+            const ptr = document.getElementById('gauge-ptr');
+            ptr.style.left = "0%"; 
+
+            document.getElementById('question-wrapper').classList.add('hidden');
+            document.getElementById('progress-container').classList.add('opacity-0', 'pointer-events-none');
+            
+            const results = document.getElementById('results-container');
+            results.classList.remove('hidden');
+
+            // Set final position after short delay to trigger transition
+            setTimeout(() => {
+                const gaugePercent = ((totalScore - 8) / (40 - 8)) * 100;
+                ptr.style.left = `${gaugePercent}%`;
+            }, 100);
+
+            setTimeout(spawnConfetti, 1500);
+
+            document.getElementById('result-title').innerText = profile.title;
+            document.getElementById('result-desc').innerText = profile.desc;
+            document.getElementById('result-icon').className = `ph ${profile.icon} text-secondary text-3xl`;
+            document.getElementById('instruments-list').innerHTML = profile.instruments.map(item => `<li class="flex items-center gap-2"><i class="ph ph-check-circle text-secondary"></i> ${item}</li>`).join('');
+            document.getElementById('advice-text').innerText = profile.advice;
+        }
+
+        function resetAssessment() {
+            currentStep = 0; scores = [];
+            document.getElementById('confetti-container').innerHTML = '';
+            document.getElementById('question-wrapper').classList.remove('hidden');
+            document.getElementById('results-container').classList.add('hidden');
+            document.getElementById('progress-container').classList.remove('opacity-0', 'pointer-events-none');
+            document.getElementById('gauge-ptr').style.left = "0%";
+            renderStep();
+        }
+        window.onload = init;
+    </script>
+</body>
+</html>
